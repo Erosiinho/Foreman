@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+.nyc_output
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Dependency directories
+node_modules/
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+
+# Vite logs files
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
