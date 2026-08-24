@@ -41,6 +41,12 @@ export async function discardAndDeleteBranch(cwd: string, branch: string): Promi
 
 export async function commitAll(cwd: string, message: string): Promise<void> {
     await git(cwd, ['add', '-A']);
+
+    const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd });
+    if (!stdout.trim()) {
+        throw new Error('Claude made no changes to commit — nothing to open a PR for.');
+    }
+
     await git(cwd, ['commit', '-m', message]);
 }
 

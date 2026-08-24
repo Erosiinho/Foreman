@@ -1,0 +1,70 @@
+networks:
+  traefik-net:
+    external: true
+    name: "traefik_network"
+  foreman:
+    driver: bridge
+
+services:
+  client:
+    image: registry.ealb.fr/foreman-client:1.0.0
+    restart: unless-stopped
+    networks:
+      - traefik-net
+      - foreman
+    depends_on:
+      - api
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_network
+      - traefik.http.routers.foreman.rule=Host(`foreman.ealb.fr`)
+      - traefik.http.services.foreman.loadbalancer.server.port=80
+
+  api:
+    image: registry.ealb.fr/foreman-api:1.0.0
+    restart: unless-stopped
+    networks:
+      - foreman
+    environment:
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS:-30}
+    depends_on:
+      - redis
+
+  worker:
+    image: registry.ealb.fr/foreman-worker:1.0.0
+    restart: unless-stopped
+    networks:
+      - foreman
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GH_TOKEN=${GH_TOKEN}
+      - PROJECTS_ROOT=/projects
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Foreman Bot}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-foreman@ealb.fr}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
+      - RUN_TIMEOUT_MINUTES=${RUN_TIMEOUT_MINUTES:-45}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - claude_config:/home/node
+      - projects_data:/projects
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - foreman
+
+volumes:
+  redis_data:
+  claude_config:
+  projects_data:
+    external: true

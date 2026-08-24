@@ -6,16 +6,18 @@ and delivery as Pull Requests.
 ## How it works
 
 1. `POST /tasks` creates a GitHub issue (`todo` label) on the target repo.
-2. GitHub fires a webhook back to `foreman-server` (`issues` event, `opened`/`labeled`).
-3. The webhook handler verifies the signature and pushes a job onto a Redis/BullMQ queue.
-4. `foreman-worker` picks up the job: checks out a `task/<id>-<slug>` branch in the project's working
+2. `foreman-server` polls your repos on an interval (`POLL_INTERVAL_SECONDS`, default 30s) for
+   issues carrying the `todo` label and pushes a job onto a Redis/BullMQ queue for each one found.
+3. `foreman-worker` picks up the job: checks out a `task/<id>-<slug>` branch in the project's working
    copy, runs `claude -p "<description>" --output-format stream-json --dangerously-skip-permissions`,
    commits, pushes, and opens a PR via `gh pr create`.
-5. The issue's label tracks progress: `todo` → `in-progress` → `done` (or `paused`/`failed`/`cancelled`).
-6. On `done`/`failed`, a Telegram notification goes out if configured (`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`).
+4. The issue's label tracks progress: `todo` → `in-progress` → `done` (or `paused`/`failed`/`cancelled`).
+5. On `done`/`failed`, a Telegram notification goes out if configured (`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`).
 
 Manually labeling an issue `todo` directly on GitHub triggers the same flow — the API call isn't the
-trigger, the webhook is.
+trigger, the next poll tick is. Polling (rather than a GitHub webhook) is a deliberate choice: it
+means `foreman-server` never needs to be reachable from the public internet — it only makes outbound
+calls to GitHub's API, so it can stay local/VPN-only.
 
 **Pause/resume/cancel**: pausing sends the worker's `claude` process a clean abort over a Redis
 pub/sub channel (`control:<owner>/<repo>`); the session_id (known as soon as the run starts, via
@@ -47,13 +49,13 @@ an expandable patch view, so you can sanity-check a change before merging withou
 
 ```
 Foreman/
-├── server/          # foreman-api — REST endpoints + GitHub webhook receiver + queue producer
+├── server/          # foreman-api — REST endpoints + GitHub issue poller + queue producer
 │   └── src/
 │       ├── github/       # IGitHub abstraction wrapping Octokit
-│       ├── queue/        # BullMQ producer + Redis pub/sub control channel
+│       ├── queue/        # BullMQ producer + Redis pub/sub control channel + IssuePoller
 │       ├── repositories/ # GitHub Issues as the task "database" (labels = status)
 │       ├── services/     # task domain logic
-│       └── http/         # Express controllers/routes/middleware/webhook (REST)
+│       └── http/         # Express controllers/routes/middleware (REST)
 ├── worker/           # foreman-worker — consumes the queue, runs Claude Code, opens the PR
 │   └── src/
 │       ├── github/       # minimal label/comment client (no shared package with server)
@@ -82,7 +84,6 @@ No database: GitHub Issues is the source of truth (status = label), and a task's
 | `POST /tasks/:owner/:repo/:number/resume` | Re-enqueue a run for that issue |
 | `POST /tasks/:owner/:repo/:number/cancel` | Publish a cancel request on the Redis control channel |
 | `GET /tasks/:owner/:repo/:number/diff` | Changed-files summary for a task's PR (404 until one exists) |
-| `POST /webhooks/github` | GitHub webhook receiver (HMAC-verified) — the actual queue trigger |
 
 Pause/resume/cancel are fully wired end-to-end: the API publishes the request, the worker acts on it
 (see "How it works" above).
@@ -116,7 +117,7 @@ docker compose up -d
 # 2. Server
 cd server
 npm install
-cp .env.example .env   # fill in GITHUB_TOKEN + GITHUB_WEBHOOK_SECRET
+cp .env.example .env   # fill in GITHUB_TOKEN
 npm run test
 npm run dev
 
@@ -141,14 +142,6 @@ auth uses the Pro/Max subscription, not an API key: run `claude` once and comple
 env var to set. In Docker, this is a one-time interactive step per container, with the resulting
 session persisted on a volume so it survives restarts.
 
-### Wiring up the GitHub webhook
-
-On the target repo: **Settings → Webhooks → Add webhook**
-- Payload URL: `https://<your-foreman-server-host>/webhooks/github`
-- Content type: `application/json`
-- Secret: same value as `GITHUB_WEBHOOK_SECRET` in `server/.env`
-- Events: just the **Issues** event
-
 ### Manual end-to-end smoke test
 
 Against a disposable test repo, with `server` and `worker` both running:
@@ -159,7 +152,8 @@ curl -X POST localhost:3000/tasks \
   -d '{"owner":"<you>","repo":"<test-repo>","title":"Add a line to README","description":"Add a one-line note to the top of README.md"}'
 ```
 
-Confirm the issue label progresses `todo` → `in-progress` → `done` and a PR appears on the repo.
+Confirm the issue label progresses `todo` → `in-progress` → `done` and a PR appears on the repo
+(the `todo` → `in-progress` step happens within `POLL_INTERVAL_SECONDS` of creation, not instantly).
 
 ## Status
 

@@ -46,7 +46,9 @@ export function runClaude(cwd: string, prompt: string, options: RunClaudeOptions
 
     return new Promise((resolve, reject) => {
         const env = options.env ? { ...process.env, ...options.env } : undefined;
-        const child = spawn('claude', args, { cwd, signal: options.signal, env });
+        // stdin explicitly ignored (~ `< /dev/null`) — an unclosed pipe leaves `claude` waiting on
+        // stdin it will never receive, which it treats as a fatal error after a few seconds.
+        const child = spawn('claude', args, { cwd, signal: options.signal, env, stdio: ['ignore', 'pipe', 'pipe'] });
 
         let buffer = '';
         let sessionId: string | undefined;

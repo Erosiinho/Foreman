@@ -1,7 +1,6 @@
-import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { buildApp, TEST_WEBHOOK_SECRET } from './fixtures';
+import { buildApp } from './fixtures';
 
 describe('Task REST API', () => {
     it('creates a task as a GitHub issue with the todo label', async () => {
@@ -156,73 +155,6 @@ describe('Task REST API', () => {
                 { filename: 'src/a.ts', status: 'modified', additions: 3, deletions: 1, changes: 4, patch: '@@ -1 +1,3 @@\n+added' },
                 { filename: 'src/b.ts', status: 'added', additions: 10, deletions: 0, changes: 10 },
             ],
-        });
-    });
-
-    describe('GitHub webhook', () => {
-        it('rejects a delivery with a missing signature', async () => {
-            const { app } = buildApp();
-
-            const res = await request(app)
-                .post('/webhooks/github')
-                .set('Content-Type', 'application/json')
-                .send(JSON.stringify({ action: 'opened' }));
-
-            expect(res.status).toBe(401);
-        });
-
-        it('rejects a delivery with an invalid signature', async () => {
-            const { app } = buildApp();
-
-            const res = await request(app)
-                .post('/webhooks/github')
-                .set('Content-Type', 'application/json')
-                .set('x-hub-signature-256', 'sha256=deadbeef')
-                .send(JSON.stringify({ action: 'opened' }));
-
-            expect(res.status).toBe(401);
-        });
-
-        it('accepts a valid delivery and enqueues a run job for an issue labeled todo', async () => {
-            const { app, runJobs } = buildApp();
-            const payload = JSON.stringify({
-                action: 'opened',
-                issue: { number: 42, title: 'Fix bug', body: 'Do the thing', labels: [{ name: 'todo' }] },
-                repository: { name: 'demo', owner: { login: 'erosinho' } },
-            });
-            const signature = 'sha256=' + createHmac('sha256', TEST_WEBHOOK_SECRET).update(payload).digest('hex');
-
-            const res = await request(app)
-                .post('/webhooks/github')
-                .set('Content-Type', 'application/json')
-                .set('x-hub-signature-256', signature)
-                .set('x-github-event', 'issues')
-                .send(payload);
-
-            expect(res.status).toBe(204);
-            expect(runJobs).toEqual([
-                { owner: 'erosinho', repo: 'demo', issueNumber: 42, title: 'Fix bug', description: 'Do the thing' },
-            ]);
-        });
-
-        it('ignores a valid delivery for an issue without the todo label', async () => {
-            const { app, runJobs } = buildApp();
-            const payload = JSON.stringify({
-                action: 'opened',
-                issue: { number: 42, title: 'Fix bug', body: 'Do the thing', labels: [{ name: 'done' }] },
-                repository: { name: 'demo', owner: { login: 'erosinho' } },
-            });
-            const signature = 'sha256=' + createHmac('sha256', TEST_WEBHOOK_SECRET).update(payload).digest('hex');
-
-            const res = await request(app)
-                .post('/webhooks/github')
-                .set('Content-Type', 'application/json')
-                .set('x-hub-signature-256', signature)
-                .set('x-github-event', 'issues')
-                .send(payload);
-
-            expect(res.status).toBe(204);
-            expect(runJobs).toHaveLength(0);
         });
     });
 });

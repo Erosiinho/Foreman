@@ -19,7 +19,7 @@ export default class ProjectRepository {
     /** Repos the GITHUB_TOKEN can see — "list your GitHub projects". */
     async list(): Promise<IRepoSummary[]> {
         const repos = await this.client.paginate(this.client.rest.repos.listForAuthenticatedUser, {
-            affiliation: 'owner,collaborator,organization_member',
+            affiliation: 'owner',
             sort: 'updated',
             per_page: 100,
         });

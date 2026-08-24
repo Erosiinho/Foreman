@@ -2,7 +2,7 @@ import { Express } from 'express';
 import IGitHub from '../github/client';
 import { ControlMessage, ITaskQueue } from '../queue/task.queue';
 import IRunTaskJob from '../types/IRunTaskJob';
-import { createApp } from '../server';
+import { App, createApp } from '../server';
 
 interface FakeIssue {
     number: number;
@@ -35,6 +35,7 @@ function fakeGitHub(repos: FakeRepo[] = []): {
     github: IGitHub;
     addComment: (owner: string, repo: string, number: number, body: string) => void;
     setPrFiles: (owner: string, repo: string, prNumber: number, files: FakePrFile[]) => void;
+    setLabels: (owner: string, repo: string, number: number, labels: string[]) => void;
 } {
     const issuesByRepo = new Map<string, FakeIssue[]>();
     const prFiles = new Map<string, FakePrFile[]>();
@@ -106,6 +107,10 @@ function fakeGitHub(repos: FakeRepo[] = []): {
         github: { getClient: <T>() => client as unknown as T },
         addComment: (owner, repo, number, body) => findIssue(owner, repo, number)?.comments.push(body),
         setPrFiles: (owner, repo, prNumber, files) => prFiles.set(`${key(owner, repo)}#${prNumber}`, files),
+        setLabels: (owner, repo, number, labels) => {
+            const issue = findIssue(owner, repo, number);
+            if (issue) issue.labels = labels.map((name) => ({ name }));
+        },
     };
 }
 
@@ -125,7 +130,7 @@ function fakeQueue(): { queue: ITaskQueue; runJobs: IRunTaskJob[]; controlMessag
     return { queue, runJobs, controlMessages };
 }
 
-export const TEST_WEBHOOK_SECRET = 'test-secret';
+export const TEST_POLL_INTERVAL_MS = 60_000;
 
 export function fakeRepo(owner: string, repo: string, overrides: Partial<FakeRepo> = {}): FakeRepo {
     return {
@@ -144,9 +149,11 @@ export function buildApp(repos: FakeRepo[] = []): {
     controlMessages: { owner: string; repo: string; message: ControlMessage }[];
     addComment: (owner: string, repo: string, number: number, body: string) => void;
     setPrFiles: (owner: string, repo: string, prNumber: number, files: FakePrFile[]) => void;
+    setLabels: (owner: string, repo: string, number: number, labels: string[]) => void;
+    poller: App['poller'];
 } {
-    const { github, addComment, setPrFiles } = fakeGitHub(repos);
+    const { github, addComment, setPrFiles, setLabels } = fakeGitHub(repos);
     const { queue, runJobs, controlMessages } = fakeQueue();
-    const { app } = createApp(github, queue, TEST_WEBHOOK_SECRET);
-    return { app, runJobs, controlMessages, addComment, setPrFiles };
+    const { app, poller } = createApp(github, queue, TEST_POLL_INTERVAL_MS);
+    return { app, runJobs, controlMessages, addComment, setPrFiles, setLabels, poller };
 }

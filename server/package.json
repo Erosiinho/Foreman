@@ -1,7 +1,7 @@
 {
   "name": "foreman-server",
   "version": "1.0.0",
-  "description": "Foreman API — task creation, GitHub webhook receiver, queue producer",
+  "description": "Foreman API — task creation, GitHub issue polling, queue producer",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
