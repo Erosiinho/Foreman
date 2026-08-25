@@ -112,6 +112,52 @@ describe('Task REST API', () => {
         ]);
     });
 
+    it('returns 404 merging an unknown task', async () => {
+        const { app } = buildApp();
+
+        const res = await request(app).post('/tasks/erosinho/demo/999/merge');
+
+        expect(res.status).toBe(404);
+    });
+
+    it('rejects merging a task that is not done', async () => {
+        const { app } = buildApp();
+        const createRes = await request(app)
+            .post('/tasks')
+            .send({ owner: 'erosinho', repo: 'demo', title: 'Fix bug', description: 'Do the thing' });
+
+        const res = await request(app).post(`/tasks/erosinho/demo/${createRes.body.number}/merge`);
+
+        expect(res.status).toBe(400);
+    });
+
+    it("returns 404 merging a done task that hasn't opened a PR", async () => {
+        const { app, setLabels } = buildApp();
+        const createRes = await request(app)
+            .post('/tasks')
+            .send({ owner: 'erosinho', repo: 'demo', title: 'Fix bug', description: 'Do the thing' });
+        setLabels('erosinho', 'demo', createRes.body.number, ['done']);
+
+        const res = await request(app).post(`/tasks/erosinho/demo/${createRes.body.number}/merge`);
+
+        expect(res.status).toBe(404);
+    });
+
+    it('merges the PR for a done task', async () => {
+        const { app, addComment, setLabels, getMergedPrs } = buildApp();
+        const createRes = await request(app)
+            .post('/tasks')
+            .send({ owner: 'erosinho', repo: 'demo', title: 'Fix bug', description: 'Do the thing' });
+        const number = createRes.body.number;
+        addComment('erosinho', 'demo', number, 'PR: https://github.com/erosinho/demo/pull/7');
+        setLabels('erosinho', 'demo', number, ['done']);
+
+        const res = await request(app).post(`/tasks/erosinho/demo/${number}/merge`);
+
+        expect(res.status).toBe(200);
+        expect(getMergedPrs('erosinho', 'demo')).toEqual([7]);
+    });
+
     it('returns 404 for the diff of an unknown task', async () => {
         const { app } = buildApp();
 

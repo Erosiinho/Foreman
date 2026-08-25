@@ -1,6 +1,6 @@
 import TaskRepository from '../repositories/task.repository';
 import { ITaskQueue } from '../queue/task.queue';
-import { NotFoundError } from '../http/errors';
+import { BadRequestError, NotFoundError } from '../http/errors';
 import ITask from '../types/ITask';
 import ITaskDiff from '../types/ITaskDiff';
 
@@ -52,5 +52,15 @@ export default class TaskService {
         const task = await this.taskRepository.get(owner, repo, number);
         if (!task) throw new NotFoundError(`No task #${number} on ${owner}/${repo}`);
         await this.taskQueue.publishControl(owner, repo, { action: 'cancel', issueNumber: number });
+    }
+
+    /** Merges the task's PR directly via the GitHub API — no worker involvement, unlike pause/resume/cancel. */
+    async mergeTask(owner: string, repo: string, number: number): Promise<void> {
+        const task = await this.taskRepository.get(owner, repo, number);
+        if (!task) throw new NotFoundError(`No task #${number} on ${owner}/${repo}`);
+        if (task.status !== 'done') throw new BadRequestError(`Task #${number} on ${owner}/${repo} isn't done yet`);
+
+        const merged = await this.taskRepository.mergePullRequest(owner, repo, number);
+        if (!merged) throw new NotFoundError(`Task #${number} on ${owner}/${repo} hasn't opened a PR yet`);
     }
 }

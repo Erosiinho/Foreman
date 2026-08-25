@@ -36,9 +36,11 @@ function fakeGitHub(repos: FakeRepo[] = []): {
     addComment: (owner: string, repo: string, number: number, body: string) => void;
     setPrFiles: (owner: string, repo: string, prNumber: number, files: FakePrFile[]) => void;
     setLabels: (owner: string, repo: string, number: number, labels: string[]) => void;
+    getMergedPrs: (owner: string, repo: string) => number[];
 } {
     const issuesByRepo = new Map<string, FakeIssue[]>();
     const prFiles = new Map<string, FakePrFile[]>();
+    const mergedPrs = new Map<string, number[]>();
     let nextNumber = 1;
 
     const key = (owner: string, repo: string) => `${owner}/${repo}`;
@@ -59,6 +61,12 @@ function fakeGitHub(repos: FakeRepo[] = []): {
             },
             pulls: {
                 listFiles,
+                async merge({ owner, repo, pull_number }: any) {
+                    const list = mergedPrs.get(key(owner, repo)) ?? [];
+                    list.push(pull_number);
+                    mergedPrs.set(key(owner, repo), list);
+                    return { data: { merged: true } };
+                },
             },
             issues: {
                 async create({ owner, repo, title, body, labels }: any) {
@@ -111,6 +119,7 @@ function fakeGitHub(repos: FakeRepo[] = []): {
             const issue = findIssue(owner, repo, number);
             if (issue) issue.labels = labels.map((name) => ({ name }));
         },
+        getMergedPrs: (owner, repo) => mergedPrs.get(key(owner, repo)) ?? [],
     };
 }
 
@@ -150,10 +159,11 @@ export function buildApp(repos: FakeRepo[] = []): {
     addComment: (owner: string, repo: string, number: number, body: string) => void;
     setPrFiles: (owner: string, repo: string, prNumber: number, files: FakePrFile[]) => void;
     setLabels: (owner: string, repo: string, number: number, labels: string[]) => void;
+    getMergedPrs: (owner: string, repo: string) => number[];
     poller: App['poller'];
 } {
-    const { github, addComment, setPrFiles, setLabels } = fakeGitHub(repos);
+    const { github, addComment, setPrFiles, setLabels, getMergedPrs } = fakeGitHub(repos);
     const { queue, runJobs, controlMessages } = fakeQueue();
     const { app, poller } = createApp(github, queue, TEST_POLL_INTERVAL_MS);
-    return { app, runJobs, controlMessages, addComment, setPrFiles, setLabels, poller };
+    return { app, runJobs, controlMessages, addComment, setPrFiles, setLabels, getMergedPrs, poller };
 }

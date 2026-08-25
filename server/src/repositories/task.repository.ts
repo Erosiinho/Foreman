@@ -144,6 +144,15 @@ export default class TaskRepository {
         return undefined;
     }
 
+    /** Merges the task's PR — returns false if the run hasn't opened one yet. */
+    async mergePullRequest(owner: string, repo: string, number: number): Promise<boolean> {
+        const prNumber = await this.getPrNumber(owner, repo, number);
+        if (!prNumber) return false;
+
+        await this.client.rest.pulls.merge({ owner, repo, pull_number: prNumber });
+        return true;
+    }
+
     /** The changed-files summary for a task's PR — undefined if the run hasn't opened one yet. */
     async getDiff(owner: string, repo: string, number: number): Promise<ITaskDiff | undefined> {
         const prNumber = await this.getPrNumber(owner, repo, number);
