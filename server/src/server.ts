@@ -22,9 +22,9 @@ export interface App {
 
 /** DI root: wires GitHub client -> repository -> service -> controller (mirrors kicker's server.ts layering). */
 export function createApp(github: IGitHub, taskQueue: ITaskQueue, pollIntervalMs: number): App {
-    const taskRepository = new TaskRepository(github);
+    const taskRepository = new TaskRepository(github, pollIntervalMs);
     const taskService = new TaskService(taskRepository, taskQueue);
-    const projectRepository = new ProjectRepository(github);
+    const projectRepository = new ProjectRepository(github, pollIntervalMs);
     const projectService = new ProjectService(projectRepository, taskRepository);
     const poller = new IssuePoller(projectRepository, taskRepository, taskQueue, pollIntervalMs);
 

@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import IGitHub from '../github/client';
 import ITask, { STATUS_LABELS, TaskStatus } from '../types/ITask';
 import ITaskDiff from '../types/ITaskDiff';
+import TtlCache from '../lib/ttl-cache';
 
 const SESSION_ID_COMMENT_RE = /<!-- foreman:session_id=(\S+) -->/;
 // Matches the "PR: <url>" line run-task.processor.ts posts on completion (worker/src/jobs/run-task.processor.ts).
@@ -11,8 +12,23 @@ function extractStatus(labels: { name?: string }[]): TaskStatus | undefined {
     return STATUS_LABELS.find((status) => labels.some((label) => label.name === status));
 }
 
+function repoKey(owner: string, repo: string): string {
+    return `${owner}/${repo}`;
+}
+
 export default class TaskRepository {
-    constructor(private github: IGitHub) {}
+    private listCache: TtlCache<ITask[]>;
+
+    /** cacheTtlMs: see ProjectRepository — same reasoning, kept in sync with the poller interval.
+     *  Note this only smooths out re-reads within this server process: a status change made by the
+     *  worker (a separate process, driven by GithubClient, not this repository) isn't reflected
+     *  here until the cache entry expires — worst case one poll interval, same as today's poller lag. */
+    constructor(
+        private github: IGitHub,
+        cacheTtlMs: number,
+    ) {
+        this.listCache = new TtlCache(cacheTtlMs);
+    }
 
     private get client(): Octokit {
         return this.github.getClient<Octokit>();
@@ -26,6 +42,8 @@ export default class TaskRepository {
             body: description,
             labels: ['todo'],
         });
+        // A freshly created issue must show up immediately, not after the cache expires.
+        this.listCache.invalidate(repoKey(owner, repo));
         return {
             owner,
             repo,
@@ -63,7 +81,13 @@ export default class TaskRepository {
      * personal-project issue volumes. Paginated (not a single capped call) so task history beyond
      * the first 30 issues doesn't silently disappear.
      */
+    /** Shared cache: the HTTP endpoint and the background poller both call this and reuse
+     *  whichever fetched first (see TtlCache). */
     async list(owner: string, repo: string): Promise<ITask[]> {
+        return this.listCache.get(repoKey(owner, repo), () => this.fetchList(owner, repo));
+    }
+
+    private async fetchList(owner: string, repo: string): Promise<ITask[]> {
         const data = await this.client.paginate(this.client.rest.issues.listForRepo, {
             owner,
             repo,

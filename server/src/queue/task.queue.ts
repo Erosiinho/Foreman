@@ -32,11 +32,7 @@ export default class BullTaskQueue implements ITaskQueue {
         const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
         this.queue = new Queue<IRunTaskJob>(TASKS_QUEUE_NAME, {
             connection,
-            // removeOnComplete/Fail: a completed job's jobId is freed up once removed, which resumeTask
-            // relies on — it re-adds a run under the SAME deterministic jobId (see jobId() below), and
-            // BullMQ treats add() with an existing jobId as a no-op otherwise (the dedup behavior the
-            // webhook-redelivery case wants, but wrong once the task has actually finished/paused).
-            defaultJobOptions: { removeOnComplete: true, removeOnFail: { count: 200 } },
+            defaultJobOptions: { removeOnComplete: true, removeOnFail: true },
         });
         this.publisher = new Redis(redisUrl);
     }

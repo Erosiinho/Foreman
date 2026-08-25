@@ -44,13 +44,18 @@ async function main(): Promise<void> {
                 throw new DelayedError();
             }
 
-            const outcome = await processor(job.data);
-            if (outcome === 'paused') {
-                await repoLock.hold(owner, repo, issueNumber);
-            } else {
+            try {
+                const outcome = await processor(job.data);
+                if (outcome === 'paused') {
+                    await repoLock.hold(owner, repo, issueNumber);
+                } else {
+                    await repoLock.release(owner, repo, issueNumber);
+                }
+                return outcome;
+            } catch (err) {
                 await repoLock.release(owner, repo, issueNumber);
+                throw err;
             }
-            return outcome;
         },
         { connection, concurrency },
     );
