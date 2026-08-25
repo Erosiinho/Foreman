@@ -75,7 +75,7 @@ export function createRunTaskProcessor({ github, projectsRoot, controlBus, notif
                 await runSetupCommand(cwd, config.setup, controller.signal);
             }
 
-            const { sessionId, summary } = await runClaude(cwd, description, {
+            const { sessionId } = await runClaude(cwd, description, {
                 resumeSessionId,
                 signal: controller.signal,
                 env: config.env,
@@ -84,7 +84,7 @@ export function createRunTaskProcessor({ github, projectsRoot, controlBus, notif
                 },
             });
 
-            await git.commitAll(cwd, `task-${issueNumber}: ${summary.slice(0, 72)}`);
+            await git.commitAll(cwd, `task-${issueNumber}: ${title}`);
             await git.push(cwd, branch);
             const prUrl = await createPullRequest(
                 cwd,
