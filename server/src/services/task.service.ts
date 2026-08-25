@@ -53,4 +53,11 @@ export default class TaskService {
         if (!task) throw new NotFoundError(`No task #${number} on ${owner}/${repo}`);
         await this.taskQueue.publishControl(owner, repo, { action: 'cancel', issueNumber: number });
     }
+
+    async mergeTask(owner: string, repo: string, number: number): Promise<void> {
+        const task = await this.taskRepository.get(owner, repo, number);
+        if (!task) throw new NotFoundError(`No task #${number} on ${owner}/${repo}`);
+        const merged = await this.taskRepository.mergePullRequest(owner, repo, number);
+        if (!merged) throw new NotFoundError(`Task #${number} on ${owner}/${repo} hasn't opened a PR yet`);
+    }
 }

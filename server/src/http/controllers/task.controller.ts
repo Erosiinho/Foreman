@@ -50,6 +50,11 @@ export default class TaskController {
         res.status(202).json({ status: 'cancel requested' });
     });
 
+    merge = asyncController(async (req, res) => {
+        await this.taskService.mergeTask(String(req.params.owner), String(req.params.repo), Number(req.params.number));
+        res.status(202).json({ status: 'merge requested' });
+    });
+
     diff = asyncController(async (req, res) => {
         const diff = await this.taskService.getTaskDiff(
             String(req.params.owner),

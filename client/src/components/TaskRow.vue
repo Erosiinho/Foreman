@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { ITask } from '../types';
-import { pauseTask, resumeTask, cancelTask, ApiError } from '../api/client';
+import {
+  pauseTask,
+  resumeTask,
+  cancelTask,
+  mergeTask,
+  ApiError,
+} from '../api/client';
 import { STATUS_META } from '../lib/status';
 import StatusLamp from './StatusLamp.vue';
 import TaskDiffPanel from './TaskDiffPanel.vue';
@@ -9,7 +15,7 @@ import TaskDiffPanel from './TaskDiffPanel.vue';
 const props = defineProps<{ task: ITask }>();
 const emit = defineEmits<{ changed: [] }>();
 
-type Action = 'pause' | 'resume' | 'cancel';
+type Action = 'pause' | 'resume' | 'cancel' | 'merge';
 
 const pending = ref<Action | null>(null);
 const error = ref<string | null>(null);
@@ -24,6 +30,7 @@ const canResume = computed(() => props.task.status === 'paused');
 const canCancel = computed(() =>
   ['todo', 'in-progress', 'paused'].includes(props.task.status),
 );
+const canMerge = computed(() => props.task.status === 'done');
 const updatedLabel = computed(() =>
   new Date(props.task.updatedAt).toLocaleString(undefined, {
     dateStyle: 'medium',
@@ -58,6 +65,10 @@ const onResume = () =>
 const onCancel = () =>
   run('cancel', () =>
     cancelTask(props.task.owner, props.task.repo, props.task.number),
+  );
+const onMerge = () =>
+  run('merge', () =>
+    mergeTask(props.task.owner, props.task.repo, props.task.number),
   );
 </script>
 
@@ -130,6 +141,15 @@ const onCancel = () =>
           @click="onCancel"
         >
           {{ pending === 'cancel' ? '…' : 'Cancel' }}
+        </button>
+        <button
+          v-if="canMerge"
+          type="button"
+          :disabled="pending !== null"
+          class="rounded border border-border-strong px-2.5 py-1 font-mono text-[0.65rem] uppercase tracking-wider text-ink transition-colors hover:border-status-done hover:text-status-done disabled:cursor-not-allowed disabled:opacity-50"
+          @click="onMerge"
+        >
+          {{ pending === 'merge' ? '…' : 'Merge PR' }}
         </button>
       </div>
     </div>

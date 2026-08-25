@@ -78,6 +78,16 @@ export function cancelTask(
     });
 }
 
+export function mergeTask(
+    owner: string,
+    repo: string,
+    number: number,
+): Promise<void> {
+    return request(`/tasks/${owner}/${repo}/${number}/merge`, {
+        method: 'POST',
+    });
+}
+
 export function getTaskDiff(
     owner: string,
     repo: string,
