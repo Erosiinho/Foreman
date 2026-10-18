@@ -103,7 +103,7 @@ describe('createRunTaskProcessor', () => {
 
         expect(outcome).toBe('done');
         expect(git.checkoutBranch).toHaveBeenCalledWith('/projects/demo', 'task/42-fix-bug');
-        expect(git.commitAll).toHaveBeenCalled();
+        expect(git.commitAll).toHaveBeenCalledWith('/projects/demo', 'task-42: Fix bug');
         expect(git.push).toHaveBeenCalled();
         expect(github.setStatus).toHaveBeenNthCalledWith(1, 'erosinho', 'demo', 42, 'in-progress');
         expect(github.setStatus).toHaveBeenNthCalledWith(2, 'erosinho', 'demo', 42, 'done');
