@@ -49,8 +49,8 @@ services:
       - RUN_TIMEOUT_MINUTES=${RUN_TIMEOUT_MINUTES:-45}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
     volumes:
-      - claude_config:/home/node
       - projects_data:/projects
     depends_on:
       - redis
@@ -65,6 +65,5 @@ services:
 
 volumes:
   redis_data:
-  claude_config:
   projects_data:
     external: true
