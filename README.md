@@ -139,8 +139,10 @@ npm run dev
 locally outside Docker (the worker Dockerfile installs both — see `worker/Dockerfile`). Claude Code
 auth uses the Pro/Max subscription, not an API key: run `claude` once and complete the browser login
 (`/login` if you're not prompted automatically) before starting the worker — there's no `ANTHROPIC_API_KEY`
-env var to set. In Docker, this is a one-time interactive step per container, with the resulting
-session persisted on a volume so it survives restarts.
+env var to set. In Docker, there's no login inside the container: run `claude setup-token` once on your
+machine and set the resulting token as `CLAUDE_CODE_OAUTH_TOKEN` (valid ~1 year, then regenerate it).
+Note the worker's agent runs with `--dangerously-skip-permissions` and can read its own environment,
+so give Foreman its own token rather than one shared with other apps.
 
 ### Manual end-to-end smoke test
 
